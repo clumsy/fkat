@@ -1,0 +1,17 @@
+# Hydra outputs
+outputs/
+.hydra/
+
+# MLflow
+mlruns/
+
+# Checkpoints
+checkpoints/
+*.ckpt
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc

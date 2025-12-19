@@ -1,0 +1,36 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-lint
+        name: ruff-lint
+        entry: ruff check
+        args: [--fix]
+        types: [python]
+        language: system
+        exclude: cases_update
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        types: [python]
+        language: system
+        exclude: cases_update
+      - id: check-added-large-files
+        name: check-added-large-files
+        entry: check-added-large-files
+        args: ['--maxkb=512']
+        types: [python]
+        language: system
+        exclude: cases_update
+      - id: typing
+        name: typing
+        entry: bash -c 'hatch run test:typing'
+        language: system
+        types: [python]
+        exclude: cases_update
+        pass_filenames: false
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        entry: trailing-whitespace-fixer
+        language: system
+        types: [text]
+        exclude: cases_update

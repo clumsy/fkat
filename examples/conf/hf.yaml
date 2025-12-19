@@ -1,0 +1,96 @@
+defaults:
+  - _self_
+  - optional strategy: null
+
+hydra:
+  run:
+    dir: .
+
+model_name: ???
+
+setup:
+  seed: 42
+  print_config: true
+
+trainer:
+  _target_: lightning.Trainer
+  accelerator: auto
+  max_steps: 10
+  val_check_interval: 5
+  limit_val_batches: 1
+  logger:
+    _target_: lightning.pytorch.loggers.MLFlowLogger
+    experiment_name: ${model_name}-train
+    tracking_uri: ./mlruns
+    synchronous: false
+  callbacks:
+    - _target_: fkat.pytorch.callbacks.cuda.memory.MemoryObserver
+    - _target_: fkat.pytorch.callbacks.logging.throughput.Throughput
+      schedule:
+        _target_: fkat.pytorch.schedule.Every
+        n_batches: 8
+    # - _target_: fkat.pytorch.callbacks.profiling.flops.Flops
+    #   schedule:
+    #     _target_: fkat.pytorch.schedule.Every
+    #     n_batches: 1
+    - _target_: fkat.pytorch.callbacks.gc.ManualGc
+      schedule:
+        _target_: fkat.pytorch.schedule.Every
+        n_batches: 4
+    - _target_: fkat.pytorch.callbacks.profiling.viztracer.VizTracer
+      compress: false
+      plugins:
+        - vizplugins.cpu_usage
+        - vizplugins.memory_usage
+      schedule:
+        _target_: fkat.pytorch.schedule.Every
+        n_batches: 8
+    - _target_: fkat.pytorch.callbacks.monitoring.shutdown.GracefulShutdown
+    - _target_: fkat.pytorch.callbacks.debugging.introspection.Introspection
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      dirpath: ./checkpoints/${model_name}-train
+      every_n_epochs: null
+      every_n_train_steps: 5
+      mode: min
+      monitor: val_loss
+
+model:
+  _target_: model.CausalLM
+  model:
+    _target_: transformers.AutoModelForCausalLM.from_pretrained
+    pretrained_model_name_or_path: ${model_name}
+  lr: 5e-5
+
+data:
+  _target_: fkat.data.DataModule
+  dataloaders:
+    train:
+      _target_: hf_module.get_dataloader
+      _partial_: true
+      dataset:
+        _target_: datasets.load_dataset
+        path: wikitext
+        name: wikitext-2-raw-v1
+        split: train[:80]
+      tokenizer:
+        _target_: transformers.AutoTokenizer.from_pretrained
+        pretrained_model_name_or_path: ${model_name}
+      batch_size: 2
+      shuffle: true
+      num_workers:
+        _target_: os.cpu_count
+    val:
+      _target_: hf_module.get_dataloader
+      _partial_: true
+      dataset:
+        _target_: datasets.load_dataset
+        path: wikitext
+        name: wikitext-2-raw-v1
+        split: validation[:20]
+      tokenizer:
+        _target_: transformers.AutoTokenizer.from_pretrained
+        pretrained_model_name_or_path: ${model_name}
+      batch_size: 2
+      shuffle: false
+      num_workers:
+        _target_: os.cpu_count

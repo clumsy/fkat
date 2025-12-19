@@ -1,0 +1,155 @@
+# Project Specific Hatch Configurations
+
+#####################
+# Default Hatch Env
+#####################
+[envs.default]
+python = "3.10"
+installer = "uv"
+pip-compile-resolver = "uv"
+pip-compile-installer = "uv"
+pip-compile-args = ["--no-emit-index-url", "--no-emit-trusted-host"]
+dependencies = [
+    "coverage[toml]",
+    "ty",
+]
+
+[envs.default.scripts]
+update = ["hatch-pip-compile --upgrade --all"]
+list = [
+    "echo 'Scripts commands available for default env:'; hatch env show --json | jq --raw-output '.default.scripts | keys[]'"
+]
+release = [
+  "hatch run test:typing",
+  "hatch run lint:check",
+  "hatch run test:test",
+  "hatch run docs:build",
+]
+
+[envs.test]
+features = ["test"]
+dependencies = [
+  "pynvml"
+]
+
+[envs.test.scripts]
+typing = [
+  "ty check fkat",
+]
+test = [
+  "pytest -n auto --cov=fkat --cov-report=term --cov-report=html --cov-report=xml --durations=5",
+]
+
+#####################
+# Docs Env
+#####################
+[envs.docs]
+features = ["docs"]
+dependencies = [
+    "pynvml"
+]
+
+[envs.docs.scripts]
+build = [
+    "sphinx-build -b html -j $(python -c 'import os; print(os.cpu_count())') docs docs/_build/html",
+]
+clean = [
+    "rm -rf docs/_build",
+]
+serve = [
+    "python -m http.server --directory docs/_build/html",
+]
+watch = [
+    "sphinx-autobuild docs docs/_build/html",
+]
+
+#####################
+# Dev Env
+#####################
+[envs.dev]
+python = "3.10"
+installer = "uv"
+dependencies = [
+    "ipdb",
+    "jupyter",
+    "ipykernel",
+    "viztracer",
+    "vizplugins",
+    "matplotlib",
+    "mlflow",
+]
+
+[envs.dev.scripts]
+notebook = "bash scripts/notebook.sh {args}"
+train = "cd examples && PYTHONPATH=. python ../fkat/train.py -cd conf -cn hf {args} && (mlflow ui --backend-store-uri file://$(pwd)/mlruns --host 0.0.0.0 --port 5000 & MLFLOW_PID=$! && sleep 5 && open http://localhost:5000 && wait $MLFLOW_PID)"
+
+#####################
+# Dev+DeepSpeed Env (extends dev)
+#####################
+[envs."dev+deepspeed"]
+template = "dev"
+extra-dependencies = [
+    "deepspeed",
+]
+
+
+
+#####################
+# Test Env
+#####################
+[[envs.hatch-test.matrix]]
+# This defines multiple variables you can generate combinations
+# to test underneath different environments.  A separate environment and
+# lock file will be created for every combination located in `./requirements/`
+python = ["3.10"]
+
+[envs.hatch-test]
+features = ["test"]
+dependencies = [
+  "pynvml"
+]
+
+
+
+[envs.hatch-test.scripts]
+run = "pytest{env:HATCH_TEST_ARGS:} {args}"
+run-cov = "coverage run -m pytest{env:HATCH_TEST_ARGS:} --pyargs"
+cov-combine = "coverage combine"
+cov-report = [
+    "coverage report",
+    "coverage html",
+    "coverage xml",
+]
+
+#####################
+# Lint Env
+#####################
+[envs.lint]
+detached = true
+skip-install = true
+dependencies = ["ruff>=0.1.6"]
+type = "pip-compile"
+pip-compile-args = ["--no-emit-index-url", "--no-emit-trusted-host"]
+
+[envs.lint.scripts]
+check = "ruff check {args:fkat}"
+fmt = ["ruff format {args:fkat}", "ruff check --fix {args:fkat}", "check"]
+
+#####################
+# Build-tools Env
+#
+# This environment is used solely to generate a lock file on hatch,
+# and hatch-pip-compile that can be automatically updated
+#####################
+[envs.build-tools]
+# This version states what version your build tools build with.  To change it,
+# you will need to:
+# * Update the `build.sh` to match,
+# * Remove the `requirements/requirements-build-tools.txt` file
+# * Run `hatch run update` to generate a new lock file for the environment
+python = "3.12"
+detached = true
+skip-install = true
+dependencies = ["hatch", "hatch-pip-compile"]
+type = "pip-compile"
+pip-compile-args = ["--no-emit-index-url", "--no-emit-trusted-host"]

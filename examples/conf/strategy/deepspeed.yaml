@@ -1,0 +1,10 @@
+_target_: lightning.pytorch.strategies.DeepSpeedStrategy
+config:
+  _convert_: all
+  zero_allow_untested_optimizer: true
+  zero_optimization:
+    stage: 2
+    contiguous_gradients: true
+    overlap_comm: true
+    allgather_bucket_size: 2e8
+    reduce_bucket_size: 2e8
