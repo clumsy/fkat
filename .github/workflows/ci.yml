@@ -9,37 +9,37 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
-    
+
     - name: Install hatch
       run: pip install hatch
-    
+
     - name: Run tests
       run: hatch run test:test
-    
+
     - name: Run type checking
       run: hatch run test:typing
 
   lint:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
-    
+
     - name: Install hatch
       run: pip install hatch
-    
+
     - name: Run linter
       run: hatch run lint:check

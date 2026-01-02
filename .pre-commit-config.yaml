@@ -3,8 +3,8 @@ repos:
     hooks:
       - id: ruff-lint
         name: ruff-lint
-        entry: ruff check
-        args: [--fix]
+        entry: bash -c 'ruff check --fix "$@" && ruff check "$@"'
+        args: []
         types: [python]
         language: system
         exclude: cases_update
