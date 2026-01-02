@@ -166,14 +166,14 @@ pipeline.yaml
 # IntelliJ
 .idea
 
-# Visual Studio Code 
+# Visual Studio Code
 .vscode/
 
 # Mac OS file
 *.DS_Store
 
 # pip auth file
-pip-index.env 
+pip-index.env
 
 # hydra folder
 .hydra/

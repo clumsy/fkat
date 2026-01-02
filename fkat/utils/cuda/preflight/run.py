@@ -119,7 +119,8 @@ def _run_single_gpu_stress_test(
         if "error" not in result:
             logger.info("Update instance stats to include test result")
             instance_stats.gpu_info = {
-                str(instance_stats.gpu_info[key]["uuid"]): result[str(key)] for key in instance_stats.gpu_info  # type: ignore[index]
+                str(instance_stats.gpu_info[key]["uuid"]): result[str(key)]
+                for key in instance_stats.gpu_info  # type: ignore[index]
             }
 
         logger.info("\n\n************** Finish run_gpu_stress_test() ***********")

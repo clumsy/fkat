@@ -46,6 +46,7 @@ trainer:
         _target_: fkat.pytorch.schedule.Every
         n_batches: 8
     - _target_: fkat.pytorch.callbacks.monitoring.shutdown.GracefulShutdown
+    - _target_: fkat.pytorch.callbacks.monitoring.crash.CrashDetector
     - _target_: fkat.pytorch.callbacks.debugging.introspection.Introspection
     - _target_: lightning.pytorch.callbacks.ModelCheckpoint
       dirpath: ./checkpoints/${model_name}-train
