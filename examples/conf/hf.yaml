@@ -25,6 +25,7 @@ trainer:
     synchronous: false
   callbacks:
     - _target_: fkat.pytorch.callbacks.cuda.memory.MemoryObserver
+    - _target_: fkat.pytorch.callbacks.monitoring.HardwareStats
     - _target_: fkat.pytorch.callbacks.logging.throughput.Throughput
       schedule:
         _target_: fkat.pytorch.schedule.Every
