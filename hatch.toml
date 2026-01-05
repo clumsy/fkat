@@ -29,7 +29,8 @@ release = [
 [envs.test]
 features = ["test"]
 dependencies = [
-  "pynvml"
+  "pynvml",
+  "vizplugins"
 ]
 
 [envs.test.scripts]

@@ -25,6 +25,7 @@ trainer:
     synchronous: false
   callbacks:
     - _target_: fkat.pytorch.callbacks.cuda.memory.MemoryObserver
+    - _target_: fkat.pytorch.callbacks.monitoring.HardwareStats
     - _target_: fkat.pytorch.callbacks.logging.throughput.Throughput
       schedule:
         _target_: fkat.pytorch.schedule.Every
@@ -47,7 +48,8 @@ trainer:
         n_batches: 8
     - _target_: fkat.pytorch.callbacks.monitoring.shutdown.GracefulShutdown
     - _target_: fkat.pytorch.callbacks.monitoring.crash.CrashDetector
-    - _target_: fkat.pytorch.callbacks.debugging.introspection.Introspection
+    - _target_: fkat.pytorch.callbacks.debugging.Introspection
+    - _target_: fkat.pytorch.callbacks.logging.ValidationMetrics
     - _target_: lightning.pytorch.callbacks.ModelCheckpoint
       dirpath: ./checkpoints/${model_name}-train
       every_n_epochs: null
