@@ -147,7 +147,9 @@ venv.bak/
 runs/
 
 # mlflow
-mlruns/
+examples/mlflow/
+examples/tensorboard/
+examples/wandb/
 
 # Pyre type checker
 .pyre/

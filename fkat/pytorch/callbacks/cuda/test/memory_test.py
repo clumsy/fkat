@@ -14,10 +14,13 @@ from fkat.pytorch.loggers import LightningLogger
 
 class TestArtifactPath(unittest.TestCase):
     @patch("os.makedirs")
-    @patch(f"{memory.__name__}.datetime")
+    @patch("fkat.utils.datetime")
     def test_artifact_path_creates_correct_structure(self, mock_datetime, mock_makedirs):
         # Arrange
-        mock_datetime.now.return_value.isoformat.return_value = "2025-06-18T20:00:00"
+        mock_now = MagicMock()
+        mock_now.strftime.return_value = "2025-06-18_20-00-00-"
+        mock_now.microsecond = 0
+        mock_datetime.now.return_value = mock_now
         root_dir = "/tmp/test"
         rank = 1
         file_type = "snapshot"
@@ -28,17 +31,17 @@ class TestArtifactPath(unittest.TestCase):
 
         # Assert
         expected_base_dir = "/tmp/test/torch.cuda.memory"
-        expected_file_path = "/tmp/test/torch.cuda.memory/rank1/snapshot/rank1_2025-06-18T20:00:00.pickle"
+        expected_file_path = "/tmp/test/torch.cuda.memory/rank1/snapshot/rank1_2025-06-18_20-00-00-000.pickle"
 
         assert base_dir == expected_base_dir
         assert file_path == expected_file_path
         mock_makedirs.assert_called_once_with("/tmp/test/torch.cuda.memory/rank1/snapshot", exist_ok=True)
 
     @patch("os.makedirs")
-    @patch(f"{memory.__name__}.datetime")
-    def test_artifact_path_different_parameters(self, mock_datetime, mock_makedirs):
+    @patch(f"{memory.__name__}.safe_timestamp")
+    def test_artifact_path_different_parameters(self, mock_safe_timestamp, mock_makedirs):
         # Arrange
-        mock_datetime.now.return_value.isoformat.return_value = "2025-06-18T15:30:45"
+        mock_safe_timestamp.return_value = "2025-06-18_15-30-45-123"
         root_dir = "/var/logs"
         rank = 0
         file_type = "flamegraph"
@@ -49,7 +52,7 @@ class TestArtifactPath(unittest.TestCase):
 
         # Assert
         expected_base_dir = "/var/logs/torch.cuda.memory"
-        expected_file_path = "/var/logs/torch.cuda.memory/rank0/flamegraph/rank0_2025-06-18T15:30:45.svg"
+        expected_file_path = "/var/logs/torch.cuda.memory/rank0/flamegraph/rank0_2025-06-18_15-30-45-123.svg"
 
         assert base_dir == expected_base_dir
         assert file_path == expected_file_path

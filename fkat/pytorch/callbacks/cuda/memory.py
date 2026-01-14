@@ -18,14 +18,15 @@ from fkat.pytorch.schedule import (
 )
 from fkat.pytorch.loggers import LightningLogger
 from fkat.pytorch.callbacks.loggers import CallbackLogger
+from fkat.utils import safe_timestamp
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
 def _artifact_path(root_dir: str, rank: int, file_type: str, ext: str) -> tuple[str, str]:
     base_dir = os.path.join(root_dir, "torch.cuda.memory")
-    now = datetime.now(timezone.utc).isoformat()
-    file_path = os.path.join(base_dir, f"rank{rank}/{file_type}/rank{rank}_{now}.{ext}")
+    timestamp = safe_timestamp()
+    file_path = os.path.join(base_dir, f"rank{rank}/{file_type}/rank{rank}_{timestamp}.{ext}")
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     return base_dir, file_path
 

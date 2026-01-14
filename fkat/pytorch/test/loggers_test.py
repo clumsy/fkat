@@ -5,9 +5,43 @@ from unittest.mock import MagicMock, patch, call
 
 import lightning as L
 from mlflow.tracking import MlflowClient  # type: ignore[possibly-unbound-import]
+from lightning.pytorch.loggers import MLFlowLogger as _MLFlowLogger
 
 from fkat.pytorch import loggers
-from fkat.pytorch.loggers import MLFlowLogger, CompositeLogger, LightningLogger
+from fkat.pytorch.loggers import (
+    MLFlowLogger,
+    TensorBoardLogger,
+    WandbLogger,
+    CompositeLogger,
+    LightningLogger,
+    _is_logger_type,
+)
+
+
+class TestLoggerTypeChecking(unittest.TestCase):
+    def test_is_logger_type_mlflow_lightning(self):
+        mock_logger = MagicMock()
+        mock_logger.__class__.__name__ = "MLFlowLogger"
+        mock_logger.__class__.__module__ = "lightning.pytorch.loggers.mlflow"
+        assert _is_logger_type(mock_logger, "MLFlowLogger")
+
+    def test_is_logger_type_mlflow_pytorch_lightning(self):
+        mock_logger = MagicMock()
+        mock_logger.__class__.__name__ = "MLFlowLogger"
+        mock_logger.__class__.__module__ = "pytorch_lightning.loggers.mlflow"
+        assert _is_logger_type(mock_logger, "MLFlowLogger")
+
+    def test_is_logger_type_wrong_name(self):
+        mock_logger = MagicMock()
+        mock_logger.__class__.__name__ = "WandbLogger"
+        mock_logger.__class__.__module__ = "lightning.pytorch.loggers.wandb"
+        assert not _is_logger_type(mock_logger, "MLFlowLogger")
+
+    def test_is_logger_type_wrong_module(self):
+        mock_logger = MagicMock()
+        mock_logger.__class__.__name__ = "MLFlowLogger"
+        mock_logger.__class__.__module__ = "some.other.module"
+        assert not _is_logger_type(mock_logger, "MLFlowLogger")
 
 
 class TestMLFlowLogger(unittest.TestCase):
@@ -85,27 +119,100 @@ class TestMLFlowLogger(unittest.TestCase):
             run_id=self.run_id, local_path=local_path, artifact_path=artifact_path
         )
 
-    @patch("fkat.pytorch.loggers.mlflow_logger")
-    @patch("fkat.pytorch.loggers.assert_not_none")
-    def test_init_with_trainer(self, mock_assert_not_none, mock_mlflow_logger):
+    def test_init_with_trainer(self):
         # Arrange
-        mock_trainer = MagicMock(spec=L.Trainer)
-        mock_lightning_logger = MagicMock(spec=MLFlowLogger)
+        mock_lightning_logger = MagicMock(spec=_MLFlowLogger)
         mock_lightning_logger._mlflow_client = self.mock_client
         mock_lightning_logger._run_id = self.run_id
         mock_lightning_logger._log_batch_kwargs = {"synchronous": True}
 
-        mock_mlflow_logger.return_value = mock_lightning_logger
-        mock_assert_not_none.side_effect = lambda x, *args: x  # Return the input
-
         # Act
-        logger = MLFlowLogger(trainer=mock_trainer)
+        logger = MLFlowLogger(logger=mock_lightning_logger)
 
         # Assert
-        mock_mlflow_logger.assert_called_once_with(mock_trainer)
         assert logger._client == self.mock_client
         assert logger._run_id == self.run_id
         assert logger._synchronous
+
+
+class TestTensorBoardLogger(unittest.TestCase):
+    def setUp(self):
+        self.mock_logger = MagicMock()
+        self.mock_experiment = MagicMock()
+        self.mock_logger.experiment = self.mock_experiment
+        self.mock_logger.log_dir = "/tmp/logs"
+        self.logger = TensorBoardLogger(logger=self.mock_logger)
+
+    @patch("fkat.pytorch.loggers.rank_zero_only")
+    def test_log_tag(self, mock_rank_zero_only):
+        mock_rank_zero_only.return_value = lambda func: func
+        self.logger.log_tag("key", "value")
+        self.mock_experiment.add_text.assert_called_once_with("key", "value")
+
+    @patch("fkat.pytorch.loggers.rank_zero_only")
+    def test_log_batch(self, mock_rank_zero_only):
+        mock_rank_zero_only.return_value = lambda func: func
+        self.logger.log_batch(metrics={"loss": 0.5}, tags={"tag": "val"}, step=10)
+        self.mock_experiment.add_scalar.assert_called_once_with("loss", 0.5, 10)
+        self.mock_experiment.add_text.assert_called_once_with("tag", "val", 10)
+
+    @patch("shutil.copy2")
+    @patch("pathlib.Path")
+    def test_log_artifact(self, mock_path, mock_copy):
+        mock_dest = MagicMock()
+        mock_path.return_value = mock_dest
+        self.mock_logger.log_dir = "/tmp/logs"
+
+        self.logger.log_artifact("/tmp/file.txt", "artifacts/file.txt")
+
+        mock_copy.assert_called_once()
+
+
+class TestWandbLogger(unittest.TestCase):
+    def setUp(self):
+        self.mock_logger = MagicMock()
+        self.mock_experiment = MagicMock()
+        self.mock_logger.experiment = self.mock_experiment
+        self.mock_experiment.config = MagicMock()
+        self.logger = WandbLogger(logger=self.mock_logger)
+
+    @patch("fkat.pytorch.loggers.rank_zero_only")
+    def test_log_tag(self, mock_rank_zero_only):
+        mock_rank_zero_only.return_value = lambda func: func
+        self.logger.log_tag("key", "value")
+        self.mock_experiment.config.update.assert_called_once_with({"key": "value"})
+
+    @patch("fkat.pytorch.loggers.rank_zero_only")
+    def test_log_batch(self, mock_rank_zero_only):
+        mock_rank_zero_only.return_value = lambda func: func
+        self.logger.log_batch(metrics={"loss": 0.5}, tags={"tag": "val"}, step=10)
+        self.mock_experiment.log.assert_called_once_with({"loss": 0.5, "tag": "val"}, step=10)
+
+    def test_log_artifact(self):
+        self.logger.log_artifact("/tmp/file.txt")
+        self.mock_experiment.save.assert_called_once_with("/tmp/file.txt")
+
+    def test_log_artifact_offline_replaces_symlink(self):
+        self.mock_experiment.settings.mode = "offline"
+        self.mock_experiment.settings.files_dir = "/wandb/files"
+
+        with patch("pathlib.Path") as mock_path, patch("shutil.copy2") as mock_copy:
+            # Setup mocks
+            mock_src_inst = MagicMock()
+            mock_src_inst.name = "file.txt"
+            mock_dest_inst = MagicMock()
+            mock_dest_inst.is_symlink.return_value = True
+
+            # Path() is called twice: once for src, once for dest
+            mock_path.return_value.absolute.return_value = mock_src_inst
+            mock_path.return_value.__truediv__.return_value = mock_dest_inst
+
+            self.logger.log_artifact("/tmp/file.txt")
+
+            # Verify save was called
+            self.mock_experiment.save.assert_called_once_with("/tmp/file.txt")
+            # Verify symlink was removed and file copied
+            assert mock_dest_inst.unlink.called or mock_copy.called
 
 
 class TestCompositeLogger(unittest.TestCase):
@@ -170,37 +277,15 @@ class TestCompositeLogger(unittest.TestCase):
         self.mock_logger2.tags.assert_called_once()
 
     @patch(f"{loggers.__name__}.MLFlowLogger")
-    def test_init_with_trainer(self, mock_mlflow_logger_cls):
-        # Arrange
-        mock_trainer = MagicMock(spec=L.Trainer)
-        mock_lightning_logger = MagicMock(spec=MLFlowLogger)
-        mock_trainer.logger = [mock_lightning_logger]  # List of loggers
-
-        # Make the mock a proper class for isinstance
-        mock_mlflow_logger_cls.__bases__ = (object,)
-        mock_lightning_logger.__class__ = mock_mlflow_logger_cls
-
-        mock_mlflow_instance = MagicMock(spec=MLFlowLogger)
-        mock_mlflow_logger_cls.return_value = mock_mlflow_instance
-
-        # Act
-        composite_logger = CompositeLogger(trainer=mock_trainer)
-
-        # Assert
-        mock_mlflow_logger_cls.assert_called_once_with(trainer=mock_trainer)
-        assert len(composite_logger.loggers) == 1
-        assert composite_logger.loggers[0] == mock_mlflow_instance
-
-    @patch(f"{loggers.__name__}.MLFlowLogger")
     def test_init_with_single_logger(self, mock_mlflow_logger_cls):
         # Arrange
         mock_trainer = MagicMock(spec=L.Trainer)
-        mock_lightning_logger = MagicMock(spec=MLFlowLogger)
-        mock_trainer.logger = mock_lightning_logger  # Single logger
 
-        # Make the mock a proper class for isinstance
-        mock_mlflow_logger_cls.__bases__ = (object,)
-        mock_lightning_logger.__class__ = mock_mlflow_logger_cls
+        # Create a mock that _is_logger_type will recognize
+        mock_lightning_logger = MagicMock()
+        type(mock_lightning_logger).__name__ = "MLFlowLogger"
+        type(mock_lightning_logger).__module__ = "lightning.pytorch.loggers.mlflow"
+        mock_trainer.loggers = [mock_lightning_logger]
 
         mock_mlflow_instance = MagicMock(spec=MLFlowLogger)
         mock_mlflow_logger_cls.return_value = mock_mlflow_instance
@@ -209,6 +294,5 @@ class TestCompositeLogger(unittest.TestCase):
         composite_logger = CompositeLogger(trainer=mock_trainer)
 
         # Assert
-        mock_mlflow_logger_cls.assert_called_once_with(trainer=mock_trainer)
         assert len(composite_logger.loggers) == 1
-        assert composite_logger.loggers[0] == mock_mlflow_instance
+        mock_mlflow_logger_cls.assert_called_once_with(logger=mock_lightning_logger)

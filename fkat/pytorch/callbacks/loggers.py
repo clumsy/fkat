@@ -4,14 +4,14 @@ from typing import Any, TYPE_CHECKING
 from typing_extensions import override
 
 import lightning as L
-from lightning.pytorch.loggers import MLFlowLogger
+from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from mlflow.entities import Metric, RunTag, Param
 from mlflow.tracking import MlflowClient  # type: ignore[possibly-unbound-import]
 
 if TYPE_CHECKING:
-    from lightning.pytorch.loggers import MLFlowLogger
+    pass
 
-from fkat.pytorch.loggers import LightningLogger
+from fkat.pytorch.loggers import LightningLogger, _is_logger_type
 from fkat.utils import assert_not_none
 from fkat.utils.logging import rank0_logger
 from fkat.utils.mlflow import broadcast_mlflow_run_id, mlflow_logger
@@ -19,7 +19,7 @@ from fkat.utils.mlflow import broadcast_mlflow_run_id, mlflow_logger
 log = rank0_logger(__name__)
 
 
-class MLFlowCallbackLogger:
+class MLFlowCallbackLogger(LightningLogger):
     """
     Mlflow logger class that supports distributed logging of tags, metrics and artifacts.
 
@@ -86,6 +86,69 @@ class MLFlowCallbackLogger:
         )
 
 
+class TensorBoardCallbackLogger(LightningLogger):
+    """TensorBoard logger for distributed logging."""
+
+    def __init__(self, logger: TensorBoardLogger) -> None:
+        self._logger = logger
+
+    def log_tag(self, key: str, value: str) -> None:
+        self._logger.experiment.add_text(key, value)
+
+    def tags(self) -> dict[str, Any]:
+        return {}
+
+    def log_batch(
+        self,
+        metrics: dict[str, float] | None = None,
+        params: dict[str, Any] | None = None,
+        tags: dict[str, str] | None = None,
+        timestamp: int | None = None,
+        step: int | None = None,
+    ) -> None:
+        if metrics:
+            for k, v in metrics.items():
+                self._logger.experiment.add_scalar(k, v, step)
+        if tags:
+            for k, v in tags.items():
+                self._logger.experiment.add_text(k, v, step)
+
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        pass
+
+
+class WandbCallbackLogger(LightningLogger):
+    """WandB logger for distributed logging."""
+
+    def __init__(self, logger: WandbLogger) -> None:
+        self._logger = logger
+
+    def log_tag(self, key: str, value: str) -> None:
+        self._logger.experiment.config.update({key: value})
+
+    def tags(self) -> dict[str, Any]:
+        return dict(self._logger.experiment.config)
+
+    def log_batch(
+        self,
+        metrics: dict[str, float] | None = None,
+        params: dict[str, Any] | None = None,
+        tags: dict[str, str] | None = None,
+        timestamp: int | None = None,
+        step: int | None = None,
+    ) -> None:
+        log_dict = {}
+        if metrics:
+            log_dict.update(metrics)
+        if tags:
+            log_dict.update(tags)
+        if log_dict:
+            self._logger.experiment.log(log_dict, step=step)
+
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        self._logger.experiment.save(local_path)
+
+
 class CallbackLogger(LightningLogger):
     """
     A wrapper on top of the collection of Logger instances,
@@ -104,9 +167,13 @@ class CallbackLogger(LightningLogger):
     def __init__(self, trainer: "L.Trainer | None", loggers: list[LightningLogger] | None = None) -> None:
         if trainer:
             self.loggers = []
-            for logger in trainer.logger if isinstance(trainer.logger, list) else [trainer.logger]:
-                if isinstance(logger, MLFlowLogger):
+            for logger in trainer.loggers:
+                if _is_logger_type(logger, "MLFlowLogger"):
                     self.loggers.append(MLFlowCallbackLogger(trainer=trainer))
+                elif _is_logger_type(logger, "TensorBoardLogger"):
+                    self.loggers.append(TensorBoardCallbackLogger(logger=logger))  # type: ignore[arg-type]
+                elif _is_logger_type(logger, "WandbLogger"):
+                    self.loggers.append(WandbCallbackLogger(logger=logger))  # type: ignore[arg-type]
         else:
             assert loggers
             self.loggers = loggers

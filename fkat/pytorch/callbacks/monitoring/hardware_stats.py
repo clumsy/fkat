@@ -6,6 +6,7 @@ from typing import Any
 from typing_extensions import override
 
 import lightning as L
+from lightning.pytorch.utilities import rank_zero_only
 import psutil
 import torch
 
@@ -43,7 +44,7 @@ class HardwareStats(L.Callback):
             else:
                 logger.warning("GPU accelerator requested but CUDA not available. Monitoring CPU/RAM only.")
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_train_epoch_start(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
         if self.accelerator == "gpu" and torch.cuda.is_available():
@@ -72,7 +73,7 @@ class HardwareStats(L.Callback):
         if self.accelerator == "gpu" and torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_train_batch_start(
         self, trainer: L.Trainer, pl_module: L.LightningModule, batch: Any, batch_idx: int
@@ -80,7 +81,7 @@ class HardwareStats(L.Callback):
         if self.schedule.check(stage="train", batch_idx=batch_idx, step=trainer.global_step, trainer=trainer):
             self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_train_batch_end(
         self, trainer: L.Trainer, pl_module: L.LightningModule, outputs: Any, batch: Any, batch_idx: int
@@ -88,7 +89,7 @@ class HardwareStats(L.Callback):
         if self.schedule.check(stage="train", batch_idx=batch_idx, step=trainer.global_step, trainer=trainer):
             self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_validation_batch_start(
         self, trainer: L.Trainer, pl_module: L.LightningModule, batch: Any, batch_idx: int, dataloader_idx: int = 0
@@ -96,7 +97,7 @@ class HardwareStats(L.Callback):
         if self.schedule.check(stage="validation", batch_idx=batch_idx, step=trainer.global_step, trainer=trainer):
             self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_validation_batch_end(
         self,
@@ -110,12 +111,12 @@ class HardwareStats(L.Callback):
         if self.schedule.check(stage="validation", batch_idx=batch_idx, step=trainer.global_step, trainer=trainer):
             self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_validation_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
         self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_before_zero_grad(self, trainer: L.Trainer, pl_module: L.LightningModule, optimizer: Any) -> None:
         if self.schedule.check(
@@ -123,12 +124,12 @@ class HardwareStats(L.Callback):
         ):
             self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def teardown(self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str) -> None:
         self._log_stats(trainer)
 
-    @L.pytorch.utilities.rank_zero_only
+    @rank_zero_only
     @override
     def on_exception(self, trainer: L.Trainer, pl_module: L.LightningModule, exception: BaseException) -> None:
         self._log_stats(trainer)

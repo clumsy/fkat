@@ -19,10 +19,17 @@ trainer:
   val_check_interval: 5
   limit_val_batches: 1
   logger:
-    _target_: lightning.pytorch.loggers.MLFlowLogger
-    experiment_name: ${model_name}-train
-    tracking_uri: ./mlruns
-    synchronous: false
+    - _target_: lightning.pytorch.loggers.MLFlowLogger
+      experiment_name: ${model_name}-train
+      tracking_uri: ./mlflow
+      synchronous: false
+    - _target_: lightning.pytorch.loggers.TensorBoardLogger
+      save_dir: ./tensorboard
+      name: ${model_name}-train
+    - _target_: lightning.pytorch.loggers.WandbLogger
+      project: ${model_name}-train
+      save_dir: ./wandb
+      offline: true
   callbacks:
     - _target_: fkat.pytorch.callbacks.cuda.memory.MemoryObserver
     - _target_: fkat.pytorch.callbacks.monitoring.HardwareStats

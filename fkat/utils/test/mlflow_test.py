@@ -14,7 +14,9 @@ class MlflowUtilsTest(TestCase):
         # Arrange
         mock_trainer = MagicMock(spec=Trainer)
         mock_mlflow_logger = MagicMock(spec=MLFlowLogger)
-        mock_trainer.logger = [mock_mlflow_logger]
+        type(mock_mlflow_logger).__name__ = "MLFlowLogger"
+        type(mock_mlflow_logger).__module__ = "lightning.pytorch.loggers.mlflow"
+        mock_trainer.loggers = [mock_mlflow_logger]
         # Act
         logger = mlflow_logger(mock_trainer)
         # Assert
