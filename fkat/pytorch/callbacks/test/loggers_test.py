@@ -13,6 +13,8 @@ from fkat.pytorch.callbacks import loggers
 from fkat.pytorch.callbacks.loggers import (
     CallbackLogger,
     MLFlowCallbackLogger,
+    TensorBoardCallbackLogger,
+    WandbCallbackLogger,
 )
 
 
@@ -21,7 +23,10 @@ class TestMLFlowCallbackLogger(unittest.TestCase):
     def test_init(self, mock_broadcast):
         # Arrange
         mock_trainer = MagicMock(spec=L.Trainer)
-        mock_trainer.logger = (mock_logger := MagicMock(spec=MLFlowLogger))
+        mock_logger = MagicMock(spec=MLFlowLogger)
+        type(mock_logger).__name__ = "MLFlowLogger"
+        type(mock_logger).__module__ = "lightning.pytorch.loggers.mlflow"
+        mock_trainer.loggers = [mock_logger]
         mock_logger._mlflow_client = MagicMock(spec=MlflowClient)
         mock_logger._run_id = "123"
         # Act
@@ -33,7 +38,10 @@ class TestMLFlowCallbackLogger(unittest.TestCase):
     def test_log_tag(self, mock_broadcast):
         # Arrange
         mock_trainer = MagicMock(spec=L.Trainer)
-        mock_trainer.logger = (mock_logger := MagicMock(spec=MLFlowLogger))
+        mock_logger = MagicMock(spec=MLFlowLogger)
+        type(mock_logger).__name__ = "MLFlowLogger"
+        type(mock_logger).__module__ = "lightning.pytorch.loggers.mlflow"
+        mock_trainer.loggers = [mock_logger]
         mock_logger._mlflow_client = MagicMock(spec=MlflowClient)
         mock_logger._run_id = "123"
         # Act
@@ -46,7 +54,10 @@ class TestMLFlowCallbackLogger(unittest.TestCase):
     def test_log_batch(self, mock_broadcast):
         # Arrange
         mock_trainer = MagicMock(spec=L.Trainer)
-        mock_trainer.logger = (mock_logger := MagicMock(spec=MLFlowLogger))
+        mock_logger = MagicMock(spec=MLFlowLogger)
+        type(mock_logger).__name__ = "MLFlowLogger"
+        type(mock_logger).__module__ = "lightning.pytorch.loggers.mlflow"
+        mock_trainer.loggers = [mock_logger]
         mock_logger._mlflow_client = MagicMock(spec=MlflowClient)
         mock_logger._run_id = "456"
         # Act
@@ -73,7 +84,10 @@ class TestMLFlowCallbackLogger(unittest.TestCase):
     def test_log_artifact(self, mock_broadcast):
         # Arrange
         mock_trainer = MagicMock(spec=L.Trainer)
-        mock_trainer.logger = (mock_logger := MagicMock(spec=MLFlowLogger))
+        mock_logger = MagicMock(spec=MLFlowLogger)
+        type(mock_logger).__name__ = "MLFlowLogger"
+        type(mock_logger).__module__ = "lightning.pytorch.loggers.mlflow"
+        mock_trainer.loggers = [mock_logger]
         mock_logger._mlflow_client = MagicMock(spec=MlflowClient)
         mock_logger._run_id = "456"
         # Act
@@ -83,6 +97,45 @@ class TestMLFlowCallbackLogger(unittest.TestCase):
         callback_logger._client.log_artifact.assert_called_once_with(  # type: ignore[attr-defined]
             run_id="456", local_path="/some/local/path", artifact_path="prefix"
         )
+
+
+class TestTensorBoardCallbackLogger(unittest.TestCase):
+    def setUp(self):
+        self.mock_logger = MagicMock()
+        self.mock_experiment = MagicMock()
+        self.mock_logger.experiment = self.mock_experiment
+        self.mock_logger.log_dir = "/tmp/logs"
+        self.logger = TensorBoardCallbackLogger(logger=self.mock_logger)
+
+    def test_log_tag(self):
+        self.logger.log_tag("key", "value")
+        self.mock_experiment.add_text.assert_called_once_with("key", "value")
+
+    def test_log_batch(self):
+        self.logger.log_batch(metrics={"loss": 0.5}, tags={"tag": "val"}, step=10)
+        self.mock_experiment.add_scalar.assert_called_once_with("loss", 0.5, 10)
+        self.mock_experiment.add_text.assert_called_once_with("tag", "val", 10)
+
+
+class TestWandbCallbackLogger(unittest.TestCase):
+    def setUp(self):
+        self.mock_logger = MagicMock()
+        self.mock_experiment = MagicMock()
+        self.mock_logger.experiment = self.mock_experiment
+        self.mock_experiment.config = MagicMock()
+        self.logger = WandbCallbackLogger(logger=self.mock_logger)
+
+    def test_log_tag(self):
+        self.logger.log_tag("key", "value")
+        self.mock_experiment.config.update.assert_called_once_with({"key": "value"})
+
+    def test_log_batch(self):
+        self.logger.log_batch(metrics={"loss": 0.5}, tags={"tag": "val"}, step=10)
+        self.mock_experiment.log.assert_called_once_with({"loss": 0.5, "tag": "val"}, step=10)
+
+    def test_log_artifact(self):
+        self.logger.log_artifact("/tmp/file.txt")
+        self.mock_experiment.save.assert_called_once_with("/tmp/file.txt")
 
 
 class TestCallbackLogger(unittest.TestCase):

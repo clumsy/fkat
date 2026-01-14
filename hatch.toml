@@ -82,7 +82,7 @@ dependencies = [
 
 [envs.dev.scripts]
 notebook = "bash scripts/notebook.sh {args}"
-train = "cd examples && PYTHONPATH=. python ../fkat/train.py -cd conf -cn hf {args} && (mlflow ui --backend-store-uri file://$(pwd)/mlruns --host 0.0.0.0 --port 5000 & MLFLOW_PID=$! && sleep 5 && open http://localhost:5000 && wait $MLFLOW_PID)"
+train = "bash scripts/train_with_servers.sh {args}"
 
 #####################
 # Dev+DeepSpeed Env (extends dev)

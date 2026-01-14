@@ -24,9 +24,11 @@ dependencies = [
   "evaluate",
   "awswrangler>=3.5.1",
   "pandas",
-  "mlflow-skinny",
   "pyarrow>=15.0.0,<21.0.0",  # Use stable versions with pre-built wheels
   "nvidia-ml-py",
+  "tensorboard",
+  "wandb",
+  "mlflow-skinny<=3.8.1",  # Pin to avoid filesystem deprecation warning (deprecated Feb 2026)
 ]
 
 [project.urls]
@@ -102,6 +104,11 @@ requires = [
   "pip<25.2",  # https://github.com/jazzband/pip-tools/issues/2252
 ]
 
+[tool.pytest.ini_options]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
 [tool.uv.workspace]
 
 [tool.hatch.env.collectors.custom]
@@ -111,6 +118,7 @@ path = ".hatch/hatch_plugin.py"
 branch = true
 omit = [
     "*/_remote_module_non_scriptable.py",  # omit pytorch-generated files in /tmp
+    "examples/*",  # omit example scripts
 ]
 [tool.coverage.xml]
 output = "coverage.xml"

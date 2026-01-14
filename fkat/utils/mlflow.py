@@ -15,10 +15,11 @@ def mlflow_logger(trainer: "Trainer") -> "MLFlowLogger | None":
     """
     Returns MLFlowLogger from trainer as constructed by PyTorch Lightning.
     """
-    loggers = trainer.logger if isinstance(trainer.logger, list) else [trainer.logger]
-    for logger in loggers:
-        if isinstance(logger, MLFlowLogger):
-            return logger
+    from fkat.pytorch.loggers import _is_logger_type
+
+    for logger in trainer.loggers:
+        if _is_logger_type(logger, "MLFlowLogger"):
+            return logger  # type: ignore[return-value]
     return None
 
 
